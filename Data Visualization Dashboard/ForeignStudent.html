@@ -1,0 +1,882 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Student Diversity in Taiwan</title>
+
+    <!--mapboxGLJS-->
+    <link
+        href="https://api.mapbox.com/mapbox-gl-js/v3.33.0/mapbox-gl.css"
+        rel="stylesheet"
+    >
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.33.0/mapbox-gl.js"></script>
+
+    <!--EChart-->
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+
+    <!--Fonts-->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="./css/style.css">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: "Lilita One", sans-serif;
+        }
+
+        #pageTitle {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 100;
+            color: #FDF8E2;
+            background-color: #504E76;
+            font-family: "Lilita One", sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 12px 0;
+            font-size: 24px;
+            line-height: 1.2;
+        }
+
+        .dashboard {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        #map {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .menu-button {
+            position: fixed;
+            top: 12px;
+            right: 16px;
+            z-index: 10001;
+            width: 48px;
+            height: 48px;
+            border: none;
+            border-radius: 8px;
+            background: #8b88bd;
+            color: #FDF8E2;
+            font-size: 23px;
+            cursor: pointer;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            right: 0;
+            z-index: 1000;
+
+            display: grid;
+
+            grid-template-columns: 6px minmax(0, 1fr) minmax(0, 1fr);
+            grid-template-rows: minmax(280px, 40vh) minmax(0, 1fr);
+
+            grid-template-areas:
+                "handle bar doughnut"
+                "handle world countries";
+
+            padding: 12px;
+            padding-left: 4px;
+
+            width: min(1180px, 96vw);
+            max-width: 98vw;
+            height: 100vh;
+
+            background: #FDF8E2;
+
+            transform: translateX(100%);
+            transition: transform 0.5s ease;
+
+            overflow: hidden;
+        }
+
+        .sidebar.open {
+            transform: translateX(0);
+        }
+
+        .sidebarhandle {
+            grid-area: handle;
+            position: relative;
+            height: 100%;
+            cursor: ew-resize;
+            touch-action: none;
+        }
+
+        .sidebarhandle::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 1px;
+            width: 3px;
+            background: #C4C3E3;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+
+        .sidebarhandle:hover::after,
+        .sidebarhandle:active::after {
+            opacity: 1;
+        }
+
+        body.sidebar-resizing {
+            cursor: ew-resize;
+            user-select: none;
+        }
+
+        #barChart {
+            grid-area: bar;
+            width: 100%;
+            height: 100%;
+            min-width: 0;
+            min-height: 0;
+        }
+
+        #PieChart {
+            grid-area: doughnut;
+            width: 100%;
+            height: 100%;
+            min-width: 0;
+            min-height: 0;
+        }
+
+        #worldMap {
+            grid-area: world;
+            width: 100%;
+            height: 100%;
+            min-width: 0;
+            min-height: 0;
+        }
+
+        #countryList {
+            grid-area: countries;
+            display: block;
+            min-width: 0;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 14px 16px;
+            border-left: 1px solid #E5E0CE;
+            color: #504E76;
+            font-family: "Outfit", sans-serif;
+        }
+
+        #countryList h2 {
+            margin: 0 0 6px;
+            padding: 0;
+            color: #504E76;
+            background: transparent;
+            text-align: left;
+            font-size: 20px;
+            line-height: 1.3;
+        }
+
+        #countryList .country-total {
+            margin: 0 0 12px;
+            color: #777493;
+            font-size: 13px;
+        }
+
+        .country-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 9px 0;
+            border-bottom: 1px solid #E5E0CE;
+            font-size: 13px;
+        }
+
+        .country-row strong {
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .marker {
+            width: 20px;
+            height: 20px;
+            background-color: #F1642E;
+            border: 4px solid white;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        .mapboxgl-popup-content {
+            background-color: #504E76;
+            color: #FDF8E2;
+            font-family: "Lilita One", sans-serif;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 200;
+            padding: 12px 16px;
+            border-radius: 20px;
+        }
+
+        .mapboxgl-popup-tip {
+            border-top-color: #504E76;
+            border-bottom-color: #504E76;
+        }
+
+        .mapboxgl-ctrl-top-left {
+            top: 65px;
+            left: 10px;
+            z-index: 500;
+        }
+
+        .mapboxgl-ctrl-top-left .mapboxgl-ctrl {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h2 id="pageTitle">Select a University!</h2>
+    <main class="dashboard">
+        <div id="map"></div>
+    </main><!--MainMap-->
+    <button id="menuButton" class="menu-button" type="button">☰</button><!--SidebarButton-->
+    <aside id="sidebar" class="sidebar">
+        <div id="Sidebarhandle" class="sidebarhandle"></div>
+        <div id="barChart"></div>
+        <div id="PieChart"></div>
+        <div id="worldMap"></div>
+        <section id="countryList"></section>
+    </aside><!--Sidebar-->
+
+    <script>
+        let map;
+        let barChart;
+        let chart;
+        let worldChart;
+
+        let worldGeoJSON = null;
+        let selectedSchool = null;
+
+        let allSchools = [];
+
+        const sidebar = document.getElementById("sidebar");
+        const menuButton = document.getElementById("menuButton");
+        const Sidebarhandle = document.getElementById("Sidebarhandle");
+
+        const taiwanBounds = [
+            [119.0, 21.5],
+            [122.5, 26.5]
+        ];//Only taiwan is visible on the map
+
+        const regionColors = {
+            "Asia": "#F1642E",
+            "America": "#504E76",
+            "North America": "#504E76",
+            "South America": "#C4C3E3",
+            "Europe": "#A3B565",
+            "Africa": "#A3B565",
+            "Oceania": "#FCDD9D",
+            "Other": "#C4C3E3"
+        };
+
+        const continentColors = {
+            "Asia": "#F1642E",
+            "North America": "#504E76",
+            "South America": "#C4C3E3",
+            "Europe": "#A3B565",
+            "Africa": "#A3B565",
+            "Oceania": "#FCDD9D"
+        };
+
+        //Interactive things
+
+        function createMap(allData) {
+            mapboxgl.accessToken =
+                "pk.eyJ1IjoibGlubnlsdW5lIiwiYSI6ImNtdmVsd3VvOTA5ZHIyeHEybWF5c20waW4ifQ.NKNCAkDigIAXzDh8RX5r3A";
+            map = new mapboxgl.Map({
+                container: "map",
+                style: "mapbox://styles/mapbox/standard",
+                center: [121.5347, 25.0420],
+                zoom: 15.5,
+                pitch: 45,
+                bearing: -17.6,
+                maxBounds: taiwanBounds,
+                config: {
+                    basemap: {
+                        show3dLandmarks: false,
+                        showPointOfInterestLabels: false,
+                        showTransitLabels: false,
+                        showRoadLabels: false,
+                        showRoads: true
+                    }
+                }
+            });
+
+            map.addControl(
+                new mapboxgl.NavigationControl(),
+                "top-left"
+            );
+
+            map.on("load", function () {
+                createUniversityMarkers(allData);
+                map.resize();
+            });
+        }
+        //the pin points
+        function createUniversityMarkers(schools) {
+            schools.forEach(function (school) {
+                if (
+                    !school.coord ||
+                    school.coord.length !== 2
+                ) {
+                    return;
+                }
+                const schoolName = school.school.replace(/^\d+\s*/, "");
+
+                const popup = new mapboxgl.Popup({
+                    closeButton: false,
+                    closeOnClick: false,
+                    offset: 15
+                }).setText(schoolName);
+
+                const markerElement = document.createElement("div");
+                markerElement.className = "marker";
+                const marker = new mapboxgl.Marker({
+                    element: markerElement,
+                    anchor: "center"
+                })
+                    .setLngLat(school.coord)
+                    .setPopup(popup)
+                    .addTo(map);
+
+                markerElement.addEventListener("mouseenter", function () {
+                    if (!popup.isOpen()) {
+                        marker.togglePopup();
+                    }
+                });
+
+                markerElement.addEventListener("mouseleave", function () {
+                    if (popup.isOpen()) {
+                        marker.togglePopup();
+                    }
+                }); //for hover display the name of the uni
+
+                markerElement.addEventListener("click", function () {
+                    selectedSchool = school;
+                    createBarChart(school);
+                    createDoughnutChart(school);
+                    if (worldGeoJSON) {
+                        createWorldMap(school);
+                    }
+                    openSidebar(); //on click will create data based on the uni u click
+
+                });
+
+            });
+
+        }
+        //bar chart for type of students
+        function createBarChart(school) {
+            if (!barChart) {
+                barChart = echarts.init(
+                    document.getElementById("barChart")
+                );
+            }
+
+            const value = school.value;
+            barChart.setOption({
+                backgroundColor: "#FDF8E2",
+                title: {
+                    text: school.school.replace(/^\d+\s*/, ""),
+                    left: 20,
+                    top: 20,
+                    textStyle: {
+                        fontFamily: "Outfit, sans-serif",
+                        fontSize: 20,
+                        fontWeight: "bold",
+                        color: "#504E76"
+                    }
+                },
+                tooltip: {
+                    trigger: "axis",
+                    axisPointer: {
+                        type: "shadow"
+                    }
+                },
+                grid: {
+                    left: 130,
+                    right: 30,
+                    top: 80,
+                    bottom: 40,
+                    containLabel: false
+                },
+                xAxis: {
+                    type: "value"
+                },
+                yAxis: {
+                    type: "category",
+                    data: [
+                        "Total Enrolled",
+                        "Male Students",
+                        "Female Students",
+                        "New Students",
+                        "Continuing Students"
+                    ],
+                    inverse: true,
+                    axisLabel: {
+                        fontFamily: "Outfit, sans-serif",
+                        fontSize: 12,
+                        color: "#777493"
+                    }
+                },
+
+                series: [{
+                    name: "Students",
+                    type: "bar",
+                    data: [
+                        value.enrolled_total,
+                        value.enrolled_male,
+                        value.enrolled_female,
+                        value.new_students,
+                        value.continuing_students
+                    ],
+                    barWidth: "55%",
+                    itemStyle: {
+                        color: function (params) {
+                            const colors = [
+                                "#504E76",
+                                "#C4C3E3",
+                                "#A3B565",
+                                "#F1642E",
+                                "#FCDD9D"
+                            ];
+                            return colors[params.dataIndex];
+                        },
+                        borderRadius: [0, 5, 5, 0]
+                    },
+                    label: {
+                        show: true,
+                        position: "right",
+                        color: "#504E76",
+                        fontFamily: "Outfit, sans-serif"
+                    }
+                }]
+
+            }, true);
+
+        }
+        //piechart to show the students home continent
+        function createDoughnutChart(school) {
+            if (!chart) {
+                chart = echarts.init(
+                    document.getElementById("PieChart")
+                );
+            }
+            let chartData = [];
+            let total = 0;
+            school.students_by_region.forEach(function (region) {
+                chartData.push({
+                    name: region.region,
+                    value: region.students_total
+                });
+                total += region.students_total;
+            });
+            chart.setOption({
+                backgroundColor: "#FDF8E2",
+                title: {
+                    text: school.school.replace(/^\d+\s*/, ""),
+                    left: 30,
+                    top: 22,
+                    textStyle: {
+                        fontFamily: "Outfit, sans-serif",
+                        fontSize: 18,
+                        fontWeight: "bold",
+                        color: "#504E76"
+                    }
+                },
+                graphic: [
+                    {
+                        type: "text",
+                        left: "28%",
+                        top: "47%",
+                        style: {
+                            text: total.toLocaleString(),
+                            font: "bold 23px Outfit",
+                            fill: "#504E76",
+                            textAlign: "center"
+                        }
+                    },
+                    {
+                        type: "text",
+                        left: "28%",
+                        top: "56%",
+                        style: {
+                            text: "students",
+                            font: "12px Outfit",
+                            fill: "#777493",
+                            textAlign: "center"
+                        }
+                    }
+                ],
+                legend: {
+                    orient: "vertical",
+                    left: 300,
+                    top: "middle",
+                    itemWidth: 10,
+                    itemHeight: 10,
+                    itemGap: 14,
+                    icon: "circle",
+                    textStyle: {
+                        fontFamily: "Outfit, sans-serif",
+                        fontSize: 12,
+                        color: "#777493"
+                    }
+                },
+                series: [{
+                    name: "Students",
+                    type: "pie",
+                    radius: ["48%", "70%"],
+                    center: ["31%", "53%"],
+                    avoidLabelOverlap: true,
+                    minAngle: 3,
+                    itemStyle: {
+                        borderColor: "#FDF8E2",
+                        borderWidth: 3
+                    },
+                    label: {
+                        show: false
+                    },
+                    emphasis: {
+                        scale: true,
+                        scaleSize: 5,
+                        label: {
+                            show: true,
+                            position: "outside",
+                            fontFamily: "Outfit, sans-serif",
+                            fontSize: 12,
+                            color: "#504E76",
+                            formatter: "{b}\n{d}%"
+                        }
+                    },
+                    data: chartData.map(function (region) {
+                        return {
+                            name: region.name,
+                            value: region.value,
+                            itemStyle: {
+                                color: regionColors[region.name] || "#C4C3E3"
+                            }
+                        };
+
+                    })
+                }]
+
+            }, true);
+
+        }
+        //map to show their specific country
+        async function loadWorldGeoJSON() {
+            const paths = [
+                "./data/countries.geojson",
+                "./countries.geojson",
+                "./data/world.geojson",
+                "./world.geojson"
+            ];
+            for (const path of paths) {
+                try {
+                    const response = await fetch(path);
+                    if (!response.ok) {
+                        continue;
+                    }
+                    const geoJSON = await response.json();
+                    if (
+                        geoJSON.type !== "FeatureCollection" ||
+                        !Array.isArray(geoJSON.features)
+                    ) {
+                        continue;
+                    }
+                    return geoJSON;
+                } catch (error) {
+                    console.warn("Could not load:", path);
+                }
+            }
+        }
+        function createWorldMap(school) {
+            if (!worldGeoJSON) {
+                return;
+            }
+            selectedSchool = school;
+            if (!worldChart) {
+
+                worldChart = echarts.init(
+                    document.getElementById("worldMap")
+                );
+            }
+            let countries = [];
+            school.students_by_region.forEach(function (region) {
+                region.countries.forEach(function (country) {
+                    countries.push({
+                        name: country.country,
+                        value: country.students_total,
+                        region: region.region
+                    });
+                });
+            });
+            const countryRegion = {};
+            countries.forEach(function (country) {
+                countryRegion[country.name] = country.region;
+            });
+
+            showCountryList("All Regions", countries);
+
+            const countryLookup = {};
+
+            countries.forEach(function (country) {
+                countryLookup[country.name] = country;
+            });
+
+            const mapData = worldGeoJSON.features.map(function (feature) {
+                const props = feature.properties || {};
+                const name = props.name || props.NAME || props.ADMIN;
+                const country = countryLookup[name];
+                const region = country ? country.region : null;
+
+                return {
+                    name: name,
+                    value: country ? country.value : 0,
+                    itemStyle: {
+                        areaColor: region
+                            ? (continentColors[region] || "#F1642E")
+                            : "#E5E0CE",
+                        borderColor: "#FDF8E2",
+                        borderWidth: 0.7
+                    }
+                };
+            });
+
+            worldChart.setOption({
+                backgroundColor: "#FDF8E2",
+                title: {
+                    text: "Where Students Come From",
+                    left: 12,
+                    top: 0,
+                    textStyle: {
+                        fontFamily: "Outfit, sans-serif",
+                        fontSize: 20,
+                        color: "#504E76"
+                    }
+                },
+                tooltip: {
+                    trigger: "item",
+                    formatter: function (params) {
+                        const country = countryLookup[params.name];
+                        if (!country) {
+                            return params.name + "<br>No student data";
+                        }
+                        return params.name + "<br>" +
+                            country.value.toLocaleString() +
+                            " students";
+                    }
+                },
+                series: [{
+                    type: "map",
+                    map: "world",
+                    roam: false,
+                    top: 45,
+                    bottom: 5,
+                    data: mapData,
+                    emphasis: {
+                        itemStyle: {
+                            areaColor: "#F1642E"
+                        }
+                    }
+                }]
+            }, true);
+
+           //clivk to only show country from that continent
+            worldChart.off("click");
+            worldChart.on("click", function (params) {
+                const country = countryLookup[params.name];
+                if (country) {
+                    showCountryList(
+                        country.region,
+                        countries
+                    );
+                }
+            });
+        }
+
+        function showCountryList(regionName, countries) {
+            const panel = document.getElementById("countryList");
+            let filtered = regionName === "All Regions"
+                ? countries
+                : countries.filter(function (country) {
+                    return country.region === regionName;
+                });
+
+            filtered.sort(function (a, b) {
+                return b.value - a.value;
+            });
+
+            const totalStudents = filtered.reduce(function (sum, country) {
+                return sum + country.value;
+            }, 0);
+
+            panel.innerHTML = `
+                <h2>${regionName === "All Regions" ? "Countries of Origin" : regionName}</h2>
+
+                <p class="country-total">
+                    ${filtered.length} countries ·
+                    ${totalStudents.toLocaleString()} students
+                </p>
+
+                ${filtered.map(function (country) {
+                    return `
+                        <div class="country-row">
+                            <span>${country.name}</span>
+                            <strong>${country.value.toLocaleString()}</strong>
+                        </div>
+                    `;
+                }).join("")}
+            `;
+
+        }
+
+        function resizeCharts() {
+            if (barChart) barChart.resize();
+            if (chart) chart.resize();
+            if (worldChart) worldChart.resize();
+        }
+
+        function openSidebar() {
+            sidebar.classList.add("open");
+            menuButton.textContent = "×";
+            setTimeout(function () {
+                resizeCharts();
+                if (map) map.resize();
+            }, 320);
+        }
+
+        function closeSidebar() {
+            sidebar.classList.remove("open");
+            menuButton.textContent = "☰";
+            setTimeout(function () {
+                resizeCharts();
+                if (map) map.resize();
+            }, 320);
+        }
+
+        menuButton.addEventListener("click", function () {
+            if (sidebar.classList.contains("open")) {
+                closeSidebar();
+            } else {
+                openSidebar();
+            }
+        });
+
+        let sidebarResizeActive = false;
+
+        Sidebarhandle.addEventListener("pointerdown", function (event) {
+            if (!sidebar.classList.contains("open")) {
+                return;
+            }
+            if (window.innerWidth <= 760) {
+                return;
+            }
+            sidebarResizeActive = true;
+            Sidebarhandle.setPointerCapture(event.pointerId);
+            document.body.classList.add("sidebar-resizing");
+            event.preventDefault();
+        });
+
+        Sidebarhandle.addEventListener("pointermove", function (event) {
+            if (!sidebarResizeActive) {
+                return;
+            }
+            const minWidth = Math.min(
+                600,
+                window.innerWidth * 0.55
+            );
+            const maxWidth = window.innerWidth * 0.98;
+
+            const newWidth = Math.max(
+                minWidth,
+                Math.min(
+                    maxWidth,
+                    window.innerWidth - event.clientX
+                )
+            );
+            sidebar.style.width = newWidth + "px";
+            resizeCharts();
+
+        });
+
+        function stopSidebarResize() {
+            if (!sidebarResizeActive) {
+                return;
+            }
+            sidebarResizeActive = false;
+            document.body.classList.remove("sidebar-resizing");
+            resizeCharts();
+        }
+
+        Sidebarhandle.addEventListener("pointerup", stopSidebarResize);
+        Sidebarhandle.addEventListener("pointercancel", stopSidebarResize);
+
+        async function loadDashboard() {
+            try {
+                const response = await fetch("./ForeignStudent.json");
+
+                const data = await response.json();
+                allSchools = data.schools || [];
+
+                createMap(allSchools);
+                selectedSchool = allSchools[0];//first school
+                createBarChart(selectedSchool);
+                createDoughnutChart(selectedSchool);
+
+                worldGeoJSON = await loadWorldGeoJSON();
+
+                if (worldGeoJSON) {
+                    echarts.registerMap("world", worldGeoJSON);
+                    createWorldMap(selectedSchool);
+                }
+                setTimeout(function () {
+
+                    resizeCharts();
+
+                    if (map) map.resize();
+
+                }, 350);
+            } 
+            catch (error) {
+                document.getElementById("countryList").innerHTML = `
+                `;
+            }
+        }
+        loadDashboard();
+    </script>
+
+</body>
+</html>
+```
